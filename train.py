@@ -57,6 +57,11 @@ def main():
     else:
         s2f_face_gen_mode = 'average_facenet_embedding'
     # End of fuser logic
+    
+    # Check dataset sizes before training
+    log.info("Dataset sizes - Train: {}, Val: {}, Test: {}".format(
+        len(train_loader.dataset), len(val_loader.dataset), len(test_loader.dataset)))
+    
     #s2f_val_evaluator = S2fEvaluator(val_loader, options)
     s2f_val_evaluator = S2fEvaluator(
         val_loader,
@@ -349,6 +354,14 @@ def main():
     got_best_cos = True
     got_best_L1 = True
     others = None
+    
+    # ============ TRAINING LOOP COMMENTED OUT FOR DATASET CHECKING ============
+    log.info("Training loop is temporarily disabled for dataset verification.")
+    log.info("To enable training, uncomment the training loop below.")
+    return 0
+    
+    """
+    # TRAINING LOOP - UNCOMMENT TO ENABLE TRAINING
     for epoch in range(start_epoch, args.epochs):
         if epoch >= args.eval_mode_after and model.training:
             log.info('[Epoch {}/{}] switching to eval mode'.format(
@@ -383,10 +396,8 @@ def main():
             with timeit('forward', args.timing):
                 #model_out = model(imgs)
                 model_out = model(log_mels)
-                """
-                imgs_pred: generated images
-                others: placeholder for other output
-                """
+                # imgs_pred: generated images
+                # others: placeholder for other output
                 imgs_pred, others = model_out
 
             if t % args.visualize_every == 0:
@@ -396,7 +407,7 @@ def main():
                 samples = visualize_sample(
                     model,
                     imgs,
-                    log_mels,
+                    log_mels, 
                     options["data"]["data_opts"]["image_normalize_method"],
                     visualize_attn=options['eval'].get('visualize_attn', False))
                 model.train(mode=training_status)
@@ -835,7 +846,8 @@ def main():
     is_mean, is_std, vfs_mean, vfs_std = evaluate(model, val_loader, options)
     log.info("Inception score: {} ({})".format(is_mean, is_std))
     log.info("VggFace score: {} ({})".format(vfs_mean, vfs_std))
-
+    """
+    # END OF TRAINING LOOP
 
 if __name__ == '__main__':
     main()
