@@ -93,25 +93,48 @@ class VoxDataset(Dataset):
         Given an index, randomly return a face and a mel_spectrogram of this guy
         '''
         sub_dataset, name = self.available_names[index]
-        # Face Image
+        
+        # Face Image - 손상된 이미지를 건너뛰는 로직 추가
         image_dir = os.path.join(
             self.data_dir, sub_dataset, self.face_dir, name)
-        image_jpg = random.choice(os.listdir(image_dir))
-        image_path = os.path.join(image_dir, image_jpg)
+        
+        image_files = os.listdir(image_dir)
+        max_attempts = len(image_files)
+        
+        for attempt in range(max_attempts):
+            try:
+                image_jpg = random.choice(image_files)
+                image_path = os.path.join(image_dir, image_jpg)
 
-        with open(image_path, 'rb') as f:
-            with PIL.Image.open(f) as image:
-                WW, HH = image.size
-                #print("PIL Image:", np.array(image))
-                image = image.convert('RGB')
-                if self.image_left_right_avg:
-                    arr = (np.array(image) / 2.0 + \
-                        np.array(T.functional.hflip(image)) / 2.0).astype(
-                            np.uint8)
-                    image = PIL.Image.fromarray(arr, mode="RGB")
-                image = self.image_transform(image)
+                with open(image_path, 'rb') as f:
+                    with PIL.Image.open(f) as image:
+                        WW, HH = image.size
+                        image = image.convert('RGB')
+                        if self.image_left_right_avg:
+                            arr = (np.array(image) / 2.0 + \
+                                np.array(T.functional.hflip(image)) / 2.0).astype(
+                                    np.uint8)
+                            image = PIL.Image.fromarray(arr, mode="RGB")
+                        image = self.image_transform(image)
+                        break  # 성공적으로 로드되면 루프 종료
+            except (PIL.UnidentifiedImageError, OSError, IOError) as e:
+                print(f"WARNING: Skipping corrupted image {image_path}: {e}")
+                # 손상된 파일을 리스트에서 제거하여 다시 선택되지 않도록 함
+                if image_jpg in image_files:
+                    image_files.remove(image_jpg)
+                if not image_files:  # 모든 이미지가 손상된 경우
+                    # 다른 사람의 데이터를 사용하거나 기본 이미지 생성
+                    print(f"ERROR: All images corrupted for {name} in {sub_dataset}")
+                    # 임시로 검은색 이미지 생성
+                    image = torch.zeros((3, self.image_size[0], self.image_size[1]))
+                    break
+                continue
+        else:
+            # 모든 시도가 실패한 경우 (이론적으로는 위의 조건문에서 처리됨)
+            print(f"ERROR: Could not load any image for {name} in {sub_dataset}")
+            image = torch.zeros((3, self.image_size[0], self.image_size[1]))
 
-        # Mel Spectrogram
+        # Mel Spectrogram - 동일한 로직을 멜 스펙트로그램에도 적용
         mel_gram_dir = os.path.join(
             self.data_dir, sub_dataset, 'mel_spectrograms', name)
         
@@ -128,15 +151,35 @@ class VoxDataset(Dataset):
             print(f"DEBUG: mel_gram_dir = {mel_gram_dir}")
             print(f"DEBUG: sub_dataset = {sub_dataset}, name = {name}")
         
-        mel_gram_pickle = random.choice(os.listdir(mel_gram_dir))
-        mel_gram_path = os.path.join(mel_gram_dir, mel_gram_pickle)
-        if not self.return_mel_segments:
-            # Return single segment
-            log_mel = self.load_mel_gram(mel_gram_path)
-            log_mel = self.mel_transform(log_mel)
+        mel_files = os.listdir(mel_gram_dir)
+        max_mel_attempts = len(mel_files)
+        
+        for attempt in range(max_mel_attempts):
+            try:
+                mel_gram_pickle = random.choice(mel_files)
+                mel_gram_path = os.path.join(mel_gram_dir, mel_gram_pickle)
+                if not self.return_mel_segments:
+                    # Return single segment
+                    log_mel = self.load_mel_gram(mel_gram_path)
+                    log_mel = self.mel_transform(log_mel)
+                    break
+            except (pickle.UnpicklingError, OSError, IOError, KeyError) as e:
+                print(f"WARNING: Skipping corrupted mel file {mel_gram_path}: {e}")
+                if mel_gram_pickle in mel_files:
+                    mel_files.remove(mel_gram_pickle)
+                if not mel_files:
+                    print(f"ERROR: All mel files corrupted for {name} in {sub_dataset}")
+                    # 기본 멜 스펙트로그램 생성
+                    log_mel = torch.zeros((40, 100))  # 기본 크기
+                    break
+                continue
         else:
-            log_mel = self.get_all_mel_segments_of_id(
-                index, shuffle=self.shuffle_mel_segments)
+            if self.return_mel_segments:
+                log_mel = self.get_all_mel_segments_of_id(
+                    index, shuffle=self.shuffle_mel_segments)
+            else:
+                print(f"ERROR: Could not load any mel file for {name} in {sub_dataset}")
+                log_mel = torch.zeros((40, 100))
 
         human_id = torch.tensor(index)
 
