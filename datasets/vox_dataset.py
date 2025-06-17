@@ -114,6 +114,20 @@ class VoxDataset(Dataset):
         # Mel Spectrogram
         mel_gram_dir = os.path.join(
             self.data_dir, sub_dataset, 'mel_spectrograms', name)
+        
+        # 에러가 발생할 경우에만 디버그 정보 출력
+        if os.path.exists(mel_gram_dir):
+            files_in_dir = os.listdir(mel_gram_dir)
+            if len(files_in_dir) == 0:
+                print(f"ERROR: Empty directory found!")
+                print(f"DEBUG: mel_gram_dir = {mel_gram_dir}")
+                print(f"DEBUG: sub_dataset = {sub_dataset}, name = {name}")
+                print(f"DEBUG: Files in mel_gram_dir: {files_in_dir}")
+        else:
+            print(f"ERROR: Directory does not exist!")
+            print(f"DEBUG: mel_gram_dir = {mel_gram_dir}")
+            print(f"DEBUG: sub_dataset = {sub_dataset}, name = {name}")
+        
         mel_gram_pickle = random.choice(os.listdir(mel_gram_dir))
         mel_gram_path = os.path.join(mel_gram_dir, mel_gram_pickle)
         if not self.return_mel_segments:
@@ -237,9 +251,21 @@ class VoxDataset(Dataset):
                 set(mel_gram_available).intersection(face_available)
             for name in available:
                 if name in self.split_dict[sub_dataset][self.split_set]:
-                    self.available_names.append((sub_dataset, name))
+                    # 빈 디렉토리 체크
+                    mel_dir = os.path.join(
+                        self.data_dir, sub_dataset, 'mel_spectrograms', name)
+                    face_dir = os.path.join(
+                        self.data_dir, sub_dataset, self.face_dir, name)
+                    
+                    # 두 디렉토리 모두 파일이 있는지 확인
+                    if (os.path.exists(mel_dir) and len(os.listdir(mel_dir)) > 0 and
+                        os.path.exists(face_dir) and len(os.listdir(face_dir)) > 0):
+                        self.available_names.append((sub_dataset, name))
+                    else:
+                        print(f"WARNING: Skipping {name} in {sub_dataset} - empty directory")
 
         self.available_names.sort()
+        print(f"Total available samples after filtering: {len(self.available_names)}")
 
     def load_mel_gram(self, mel_pickle):
         '''

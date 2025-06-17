@@ -355,13 +355,6 @@ def main():
     got_best_L1 = True
     others = None
     
-    # ============ TRAINING LOOP COMMENTED OUT FOR DATASET CHECKING ============
-    log.info("Training loop is temporarily disabled for dataset verification.")
-    log.info("To enable training, uncomment the training loop below.")
-    return 0
-    
-    """
-    # TRAINING LOOP - UNCOMMENT TO ENABLE TRAINING
     for epoch in range(start_epoch, args.epochs):
         if epoch >= args.eval_mode_after and model.training:
             log.info('[Epoch {}/{}] switching to eval mode'.format(
@@ -846,8 +839,6 @@ def main():
     is_mean, is_std, vfs_mean, vfs_std = evaluate(model, val_loader, options)
     log.info("Inception score: {} ({})".format(is_mean, is_std))
     log.info("VggFace score: {} ({})".format(vfs_mean, vfs_std))
-    """
-    # END OF TRAINING LOOP
 
 if __name__ == '__main__':
     main()
