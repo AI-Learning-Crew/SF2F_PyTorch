@@ -37,7 +37,7 @@ def vad_process(path):
     for i, segment in enumerate(segments):
         total_wav += segment
     # Without writing, unpack total_wav into numpy [N,1] array
-    # 16bit PCM 기준 dtype=np.int16
+    # 16bit PCM format dtype=np.int16
     wav_arr = np.frombuffer(total_wav, dtype=np.int16)
     #print("read audio data from byte string. np array of shape:" + \
     #    str(wav_arr.shape))

@@ -32,14 +32,14 @@ def main():
         'vox2': {'train':[], 'val':[], 'test':[]}
         }
 
-    # 실제 사용 가능한 데이터를 기반으로 분할하기
-    # 1. 먼저 실제 존재하는 identity들을 확인
+    # Split based on actually available data
+    # 1. First check actually existing identities
     vox1_mel_available = set()
     vox1_face_available = set()
     vox2_mel_available = set()  
     vox2_face_available = set()
     
-    # vox1 데이터 확인
+    # Check vox1 data
     vox1_mel_dir = os.path.join(VOX_DIR, 'vox1', 'mel_spectrograms')
     vox1_face_dir = os.path.join(VOX_DIR, 'vox1', 'masked_faces')
     if os.path.exists(vox1_mel_dir):
@@ -47,7 +47,7 @@ def main():
     if os.path.exists(vox1_face_dir):
         vox1_face_available = set(os.listdir(vox1_face_dir))
     
-    # vox2 데이터 확인
+    # Check vox2 data
     vox2_mel_dir = os.path.join(VOX_DIR, 'vox2', 'mel_spectrograms')
     vox2_face_dir = os.path.join(VOX_DIR, 'vox2', 'masked_faces')
     if os.path.exists(vox2_mel_dir):
@@ -55,14 +55,14 @@ def main():
     if os.path.exists(vox2_face_dir):
         vox2_face_available = set(os.listdir(vox2_face_dir))
     
-    # 교집합: 음성과 얼굴이 모두 있는 identity들
+    # Intersection: identities with both speech and face data
     vox1_available = vox1_mel_available.intersection(vox1_face_available)
     vox2_available = vox2_mel_available.intersection(vox2_face_available)
     
-    print(f"VoxCeleb1 - 실제 사용 가능한 identity 수: {len(vox1_available)}")
-    print(f"VoxCeleb2 - 실제 사용 가능한 identity 수: {len(vox2_available)}")
+    print(f"VoxCeleb1 - Number of actually available identities: {len(vox1_available)}")
+    print(f"VoxCeleb2 - Number of actually available identities: {len(vox2_available)}")
     
-    # VoxCeleb1 분할: 실제 사용 가능한 데이터만
+    # VoxCeleb1 split: only actually available data
     vox1_available_list = sorted(list(vox1_available))
     for i, name in enumerate(vox1_available_list):
         if i % 10 == 8:
@@ -72,7 +72,7 @@ def main():
         else:
             split_dict['vox1']['train'].append(name)
 
-    # VoxCeleb2 분할: 실제 사용 가능한 데이터만
+    # VoxCeleb2 split: only actually available data
     vox2_available_list = sorted(list(vox2_available))
     for i, name in enumerate(vox2_available_list):
         if i % 10 == 8:

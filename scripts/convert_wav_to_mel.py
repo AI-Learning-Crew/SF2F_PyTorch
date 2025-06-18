@@ -11,16 +11,16 @@ import os
 import logging
 import sys
 
-# 코랩 환경용 로깅 억제 설정
-os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'  # ERROR만 표시
-os.environ['CUDA_VISIBLE_DEVICES'] = '0'  # GPU 지정
-os.environ['TF_ENABLE_ONEDNN_OPTS'] = '0'  # oneDNN 최적화 비활성화
+# Colab environment logging suppression settings
+os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'  # Show ERROR only
+os.environ['CUDA_VISIBLE_DEVICES'] = '0'  # Specify GPU
+os.environ['TF_ENABLE_ONEDNN_OPTS'] = '0'  # Disable oneDNN optimization
 
-# Python 로깅 레벨 설정
+# Python logging level settings
 logging.getLogger('tensorflow').setLevel(logging.ERROR)
 logging.getLogger('absl').setLevel(logging.ERROR)
 
-# stderr 리다이렉션으로 CUDA 메시지 억제
+# Suppress CUDA messages with stderr redirection
 class SuppressStderr:
     def __enter__(self):
         self._original_stderr = sys.stderr
@@ -41,19 +41,19 @@ import numpy as np
 import pandas as pd
 import multiprocessing as mp
 
-# TensorFlow import 시 에러 메시지 억제
+# TensorFlow import with error message suppression
 with SuppressStderr():
     from tensorflow.io import gfile
 
 sys.path.append('./')
 
-# wav2mel import 시에도 CUDA 메시지 억제
+# wav2mel import with CUDA message suppression
 with SuppressStderr():
     from utils.wav2mel import wav_to_mel
 
 from concurrent.futures import ProcessPoolExecutor, as_completed
 
-# 경로 설정
+# Path settings
 VOX_DIR = os.path.join('./data/VoxCeleb')
 vox1_raw = os.path.join(VOX_DIR, 'raw_wav', 'vox1')
 vox2_raw = os.path.join(VOX_DIR, 'raw_wav', 'vox2')
@@ -68,60 +68,60 @@ class WavConvertor:
         self.create_output_dirs()
 
     def load_metadata(self):
-        # CSV 파일 불러오기 (탭 구분자 사용)
+        # Load CSV files (using tab separator)
         self.vox1_df = pd.read_csv(vox1_meta_csv, sep='\t')
         self.vox2_df = pd.read_csv(vox2_meta_csv, sep='\t')
-        # 열 이름의 앞뒤 공백 제거
+        # Remove leading/trailing whitespace from column names
         self.vox1_df.columns = self.vox1_df.columns.str.strip()
         self.vox2_df.columns = self.vox2_df.columns.str.strip()
 
     def get_id2name(self):
-        # ID와 이름을 매핑
+        # Map ID to name
         self.vox1_id2name = dict(
             zip(self.vox1_df['VoxCeleb1 ID'], self.vox1_df['VGGFace1 ID']))
         
-        # Vox2 매핑 개선
+        # Improve Vox2 mapping
         self.vox2_id2name = {}
         for _, row in self.vox2_df.iterrows():
             vox2_id = row['VoxCeleb2 ID'].strip()
             name = row['Name'].strip()
-            if vox2_id and name:  # 빈 값이 아닌 경우에만 추가
+            if vox2_id and name:  # Add only non-empty values
                 self.vox2_id2name[vox2_id] = name
         
-        # 디버깅 정보 출력
-        print(f"Vox1 매핑 수: {len(self.vox1_id2name)}")
-        print(f"Vox2 매핑 수: {len(self.vox2_id2name)}")
+        # Print debugging information
+        print(f"Vox1 mappings: {len(self.vox1_id2name)}")
+        print(f"Vox2 mappings: {len(self.vox2_id2name)}")
 
     def find_empty_mel_directories(self):
         """
-        빈 mel spectrogram 디렉토리를 찾아서 해당하는 raw wav 디렉토리를 반환
+        Find empty mel spectrogram directories and return corresponding raw wav directories
         """
         empty_dirs = []
         
         for dataset in ['vox1', 'vox2']:
             mel_base_dir = os.path.join(VOX_DIR, dataset, 'mel_spectrograms')
             if not os.path.exists(mel_base_dir):
-                print(f"? {mel_base_dir} 디렉토리가 존재하지 않습니다.")
+                print(f"? {mel_base_dir} directory does not exist.")
                 continue
                 
-            print(f"? {dataset} mel_spectrograms 디렉토리 스캔 중...")
+            print(f"? Scanning {dataset} mel_spectrograms directory...")
             
-            # mel_spectrograms 디렉토리의 모든 하위 디렉토리 체크
+            # Check all subdirectories in mel_spectrograms directory
             for name in os.listdir(mel_base_dir):
                 mel_dir_path = os.path.join(mel_base_dir, name)
                 if os.path.isdir(mel_dir_path):
-                    # 디렉토리가 비어있거나 파일이 매우 적은 경우
+                    # Check if directory is empty or has very few files
                     files = os.listdir(mel_dir_path)
                     pickle_files = [f for f in files if f.endswith('.pickle')]
                     
-                    if len(pickle_files) == 0:  # 완전히 빈 디렉토리
-                        print(f"? 빈 디렉토리 발견: {name} ({dataset})")
-                        # 해당하는 raw wav 디렉토리 찾기
+                    if len(pickle_files) == 0:  # Completely empty directory
+                        print(f"? Empty directory found: {name} ({dataset})")
+                        # Find corresponding raw wav directory
                         corresponding_wav_dir = self.find_corresponding_wav_dir(name, dataset)
                         if corresponding_wav_dir:
                             empty_dirs.append((corresponding_wav_dir, getattr(self, f'{dataset}_mel'), dataset))
-                    elif len(pickle_files) < 5:  # 파일이 너무 적은 경우
-                        print(f"? 파일 부족 디렉토리: {name} ({dataset}) - {len(pickle_files)}개 파일")
+                    elif len(pickle_files) < 5:  # Too few files
+                        print(f"? Insufficient files directory: {name} ({dataset}) - {len(pickle_files)} files")
                         corresponding_wav_dir = self.find_corresponding_wav_dir(name, dataset)
                         if corresponding_wav_dir:
                             empty_dirs.append((corresponding_wav_dir, getattr(self, f'{dataset}_mel'), dataset))
@@ -130,9 +130,9 @@ class WavConvertor:
 
     def find_corresponding_wav_dir(self, name, dataset):
         """
-        name(이름)에 해당하는 raw wav 디렉토리를 찾기
+        Find corresponding raw wav directory for a given name
         """
-        # 이름을 ID로 역변환
+        # Convert name to ID
         name_to_id = {}
         if dataset == 'vox1':
             name_to_id = {v: k for k, v in self.vox1_id2name.items()}
@@ -141,24 +141,24 @@ class WavConvertor:
             
         speaker_id = name_to_id.get(name)
         if not speaker_id:
-            print(f"?? {name}에 해당하는 ID를 찾을 수 없습니다.")
+            print(f"?? Could not find ID for {name}.")
             return None
             
-        # raw wav 디렉토리에서 해당 ID 찾기
+        # Find corresponding ID in raw wav directory
         raw_base = getattr(self, f'{dataset}_raw')
         
-        # dev, test 디렉토리에서 찾기
+        # Search in dev, test directories
         for split in ['dev', 'test']:
             split_dir = os.path.join(raw_base, split)
             if os.path.exists(split_dir):
                 for dir_name in os.listdir(split_dir):
-                    # ID가 포함된 디렉토리 이름 찾기
+                    # Find directory names containing the ID
                     if dir_name.startswith(speaker_id):
                         wav_dir = os.path.join(split_dir, dir_name)
                         if os.path.isdir(wav_dir):
                             return wav_dir
         
-        print(f"?? {speaker_id}({name})에 해당하는 raw wav 디렉토리를 찾을 수 없습니다.")
+        print(f"?? Could not find corresponding raw wav directory for {speaker_id}({name})")
         return None
 
     def convert_identity(self, wav_dir, mel_home_dir, dataset):
@@ -166,9 +166,9 @@ class WavConvertor:
         if spkid == '':
             spkid = wav_dir.split('/')[-2]
         
-        # _ 앞의 ID 부분만 추출 (예: id01218_Brice_Hortefeux -> id01218)
+        # Extract only the ID part before _ (e.g., id01218_Brice_Hortefeux -> id01218)
         spkid = spkid.split('_')[0]
-        spkid = spkid.strip()  # 공백 제거
+        spkid = spkid.strip()  # Remove whitespace
 
         name = None
         if dataset == 'vox1':
@@ -195,17 +195,17 @@ class WavConvertor:
             clip_dir = os.path.join(wav_dir, clipid)
             if not os.path.isdir(clip_dir):
                 continue
-            print(f"  ▶? clipid: {clipid} 처리 시작")
+            print(f"  ▶? clipid: {clipid} processing started")
             wav_files = os.listdir(clip_dir)
             for wav_file in wav_files:
                 wav_path = os.path.join(clip_dir, wav_file)
                 try:
-                    print(f"    ? wav 파일 처리: {wav_file}")
+                    print(f"    ? Processing wav file: {wav_file}")
                     wavid = wav_file.replace('.wav', '').replace('.m4a', '')
                     pickle_name = f"{spkid}_{clipid}_{wavid}.pickle"
                     pickle_path = os.path.join(mel_dir, pickle_name)
                     if os.path.exists(pickle_path):
-                        print(f"    ? 이미 존재: {pickle_name}, 건너뜀")
+                        print(f"    ? Already exists: {pickle_name}, skipping")
                         continue
                     log_mel = wav_to_mel(wav_path)
                     pickle_dict = {
@@ -216,12 +216,12 @@ class WavConvertor:
                     }
                     with open(pickle_path, "wb") as f:
                         pickle.dump(pickle_dict, f)
-                    print(f"    ? 저장 완료: {pickle_name}")
+                    print(f"    ? Saved: {pickle_name}")
                     processed_count += 1
                 except Exception as e:
                     print(f"? Error processing {wav_path}: {e}")
         
-        print(f"? {name}: 총 {processed_count}개 파일 처리 완료")
+        print(f"? {name}: Total {processed_count} files processed")
         gc.collect()
 
     def get_wav_dirs(self):
@@ -254,20 +254,20 @@ class WavConvertor:
 
     def convert_empty_directories_only(self, n_jobs=1):
         """
-        빈 디렉토리만 찾아서 처리
+        Process only empty directories
         """
-        print("? 빈 mel spectrogram 디렉토리 스캔 중...")
+        print("? Scanning empty mel spectrogram directories...")
         empty_dirs = self.find_empty_mel_directories()
         
         if not empty_dirs:
-            print("? 모든 디렉토리에 mel spectrogram이 있습니다!")
+            print("? All directories have mel spectrograms!")
             return
             
-        print(f"? 처리할 빈 디렉토리: {len(empty_dirs)}개")
+        print(f"? Number of directories to process: {len(empty_dirs)}")
         for wav_dir, _, dataset in empty_dirs:
             print(f"  - {wav_dir} ({dataset})")
         
-        # 멀티프로세싱으로 처리
+        # Process with multiprocessing
         n_dirs = len(empty_dirs)
         n_jobs = min(n_jobs, n_dirs)
         n_per_job = n_dirs // n_jobs
@@ -285,11 +285,11 @@ class WavConvertor:
             for future in as_completed(futures):
                 pass
 
-        print("? 빈 디렉토리 처리 완료!")
+        print("? Empty directories processed.")
 
     def convert_wav_to_mel(self, n_jobs=1):
         """
-        기존 방식: 모든 디렉토리 처리
+        Existing method: process all directories
         """
         infos = [(d, self.vox1_mel, 'vox1') for d in self.vox1_wav_dirs]
         infos += [(d, self.vox2_mel, 'vox2') for d in self.vox2_wav_dirs]
@@ -317,16 +317,16 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('--n_jobs', '-n_jobs', type=int, default=1)
     parser.add_argument('--empty_only', action='store_true', 
-                       help='빈 디렉토리만 처리합니다')
+                       help='Process only empty directories')
     args = parser.parse_args()
 
     wav_convertor = WavConvertor()
 
     if args.empty_only:
-        print("? 빈 디렉토리만 처리 모드")
+        print("? Processing empty directories only")
         wav_convertor.convert_empty_directories_only(args.n_jobs)
     else:
-        print("? 전체 디렉토리 처리 모드")
+        print("? Processing all directories")
         wav_convertor.convert_wav_to_mel(args.n_jobs)
 
 if __name__ == '__main__':

@@ -94,7 +94,7 @@ class VoxDataset(Dataset):
         '''
         sub_dataset, name = self.available_names[index]
         
-        # Face Image - 손상된 이미지를 건너뛰는 로직 추가
+        # Face Image - Add logic to skip corrupted images
         image_dir = os.path.join(
             self.data_dir, sub_dataset, self.face_dir, name)
         
@@ -116,29 +116,29 @@ class VoxDataset(Dataset):
                                     np.uint8)
                             image = PIL.Image.fromarray(arr, mode="RGB")
                         image = self.image_transform(image)
-                        break  # 성공적으로 로드되면 루프 종료
+                        break  # Exit loop if successfully loaded
             except (PIL.UnidentifiedImageError, OSError, IOError) as e:
                 print(f"WARNING: Skipping corrupted image {image_path}: {e}")
-                # 손상된 파일을 리스트에서 제거하여 다시 선택되지 않도록 함
+                # Remove corrupted file from list to prevent reselection
                 if image_jpg in image_files:
                     image_files.remove(image_jpg)
-                if not image_files:  # 모든 이미지가 손상된 경우
-                    # 다른 사람의 데이터를 사용하거나 기본 이미지 생성
+                if not image_files:  # If all images are corrupted
+                    # Use another person's data or generate default image
                     print(f"ERROR: All images corrupted for {name} in {sub_dataset}")
-                    # 임시로 검은색 이미지 생성
+                    # Temporarily generate black image
                     image = torch.zeros((3, self.image_size[0], self.image_size[1]))
                     break
                 continue
         else:
-            # 모든 시도가 실패한 경우 (이론적으로는 위의 조건문에서 처리됨)
+            # If all attempts fail (theoretically handled by above condition)
             print(f"ERROR: Could not load any image for {name} in {sub_dataset}")
             image = torch.zeros((3, self.image_size[0], self.image_size[1]))
 
-        # Mel Spectrogram - 동일한 로직을 멜 스펙트로그램에도 적용
+        # Mel Spectrogram - Apply same logic to mel spectrograms
         mel_gram_dir = os.path.join(
             self.data_dir, sub_dataset, 'mel_spectrograms', name)
         
-        # 에러가 발생할 경우에만 디버그 정보 출력
+        # Print debug information only when error occurs
         if os.path.exists(mel_gram_dir):
             files_in_dir = os.listdir(mel_gram_dir)
             if len(files_in_dir) == 0:
@@ -150,7 +150,7 @@ class VoxDataset(Dataset):
             print(f"ERROR: Directory does not exist!")
             print(f"DEBUG: mel_gram_dir = {mel_gram_dir}")
             print(f"DEBUG: sub_dataset = {sub_dataset}, name = {name}")
-        
+
         mel_files = os.listdir(mel_gram_dir)
         max_mel_attempts = len(mel_files)
         
@@ -163,14 +163,14 @@ class VoxDataset(Dataset):
                     log_mel = self.load_mel_gram(mel_gram_path)
                     log_mel = self.mel_transform(log_mel)
                     break
-            except (pickle.UnpicklingError, OSError, IOError, KeyError) as e:
+            except (EOFError, pickle.UnpicklingError, OSError, IOError, KeyError) as e:
                 print(f"WARNING: Skipping corrupted mel file {mel_gram_path}: {e}")
                 if mel_gram_pickle in mel_files:
                     mel_files.remove(mel_gram_pickle)
                 if not mel_files:
                     print(f"ERROR: All mel files corrupted for {name} in {sub_dataset}")
-                    # 기본 멜 스펙트로그램 생성
-                    log_mel = torch.zeros((40, 100))  # 기본 크기
+                    # Generate default mel spectrogram
+                    log_mel = torch.zeros((40, 100))  # Default size
                     break
                 continue
         else:
@@ -323,16 +323,18 @@ class VoxDataset(Dataset):
         Inputs:
         - mel_pickle: Path to the mel spectrogram to be loaded.
         '''
-        # open a file, where you stored the pickled data
-        file = open(mel_pickle, 'rb')
-        # dump information to that file
-        data = pickle.load(file)
-        # close the file
-        file.close()
-        log_mel = data['LogMel_Features']
-        #log_mel = np.transpose(log_mel, axes=None)
-
-        return log_mel
+        try:
+            # open a file, where you stored the pickled data
+            with open(mel_pickle, 'rb') as file:
+                # dump information to that file
+                data = pickle.load(file)
+            log_mel = data['LogMel_Features']
+            #log_mel = np.transpose(log_mel, axes=None)
+            return log_mel
+        except (EOFError, pickle.UnpicklingError, OSError, IOError, KeyError) as e:
+            print(f"ERROR: Failed to load mel file {mel_pickle}: {e}")
+            # 기본 멜 스펙트로그램 반환 (40은 일반적인 멜 필터뱅크 수)
+            return np.zeros((40, 100), dtype=np.float32)
 
     def crop_or_pad(self, log_mel, out_frame):
         '''
