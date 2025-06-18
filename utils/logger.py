@@ -1,11 +1,8 @@
 # Code referenced from https://gist.github.com/gyglim/1f8dfb1b5c82627ae3efcfbbadb9f514
 import tensorflow as tf
 import numpy as np
-import scipy.misc
-try:
-    from StringIO import StringIO  # Python 2.7
-except ImportError:
-    from io import BytesIO         # Python 3.x
+from PIL import Image
+from io import BytesIO
 
 
 class Logger(object):
@@ -72,16 +69,39 @@ class Logger(object):
         self.writer.flush()
 
     def add_image(self, img, tag):
-        # Write the image to a string
-        try:
-            s = StringIO()
-        except:
-            s = BytesIO()
-        scipy.misc.toimage(img).save(s, format="png")
+        """Convert numpy array to PIL Image and save as PNG for TensorBoard."""
+        # Write the image to a BytesIO stream
+        s = BytesIO()
+        
+        # Convert numpy array to PIL Image and handle different data types
+        if img.dtype != np.uint8:
+            # Ensure the image is in the range [0, 255] and convert to uint8
+            if img.max() <= 1.0:
+                img = (img * 255).astype(np.uint8)
+            else:
+                img = img.astype(np.uint8)
+        
+        # Handle different image formats
+        if len(img.shape) == 2:
+            # Grayscale (2D) images
+            pil_img = Image.fromarray(img, mode='L')
+        elif len(img.shape) == 3 and img.shape[2] == 3:
+            # RGB images
+            pil_img = Image.fromarray(img, mode='RGB')
+        elif len(img.shape) == 3 and img.shape[2] == 4:
+            # RGBA images
+            pil_img = Image.fromarray(img, mode='RGBA')
+        else:
+            # Fallback: try to create image without specifying mode
+            pil_img = Image.fromarray(img)
+            
+        pil_img.save(s, format="PNG")
 
-        # Create an Image object
-        img_sum = tf.compat.v1.Summary.Image(encoded_image_string=s.getvalue(),
-                                   height=img.shape[0],
-                                   width=img.shape[1])
+        # Create an Image object for TensorBoard
+        img_sum = tf.compat.v1.Summary.Image(
+            encoded_image_string=s.getvalue(),
+            height=img.shape[0],
+            width=img.shape[1]
+        )
 
         return tf.compat.v1.Summary.Value(tag=tag, image=img_sum)
