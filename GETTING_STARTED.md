@@ -119,23 +119,35 @@ python test.py \
   --checkpoint L1 cos R10 epoch_2 epoch_4 epoch_6 epoch_8 epoch_10 epoch_12
 ```
 
+  --checkpoint_start_from output/sf2f_fuser_exp \
+  --recall_method cos_sim \
+  --face_gen_mode naive \
+  --train_fuser_only True \
+  --checkpoint epoch_10 epoch_20 epoch_30
 
-1단계: 1st-stage (Encoder + Decoder 학습)
-bash
-복사
-편집
+
+  빠르게 SF2F 전체 파이프라인(1st-stage → 2nd-stage → 테스트)을 실험하기 위한 **간소화된 학습 파라미터**를 아래와 같이 구성했습니다. 학습 시간은 수 시간이면 충분하며, 성능 추세 확인과 구조 점검에 유리합니다.
+
+---
+
+## ✅ 1단계: 1st-stage (Encoder + Decoder 학습)
+
+```bash
 python train.py \
   --path_opt options/vox/sf2f/sf2f_1st_stage.yaml \
   --batch_size 64 \                         # 빠른 실험을 위한 축소
   --visualize_every 1 \                    # 매 epoch마다 시각화
   --epochs 500 \                           # 12000 → 500으로 대폭 축소
   --eval_epochs 10                         # 10 epoch마다 검증
-✅ 결과 확인 포인트: val_facenet_cos_sim, val_recall@k가 점진적으로 오르면 학습 성공
+```
 
-✅ 2단계: 2nd-stage (Fuser만 학습)
-bash
-복사
-편집
+* ✅ 결과 확인 포인트: `val_facenet_cos_sim`, `val_recall@k`가 점진적으로 오르면 학습 성공
+
+---
+
+## ✅ 2단계: 2nd-stage (Fuser만 학습)
+
+```bash
 python train.py \
   --path_opt options/vox/sf2f/sf2f_fuser.yaml \
   --batch_size 64 \
@@ -146,22 +158,27 @@ python train.py \
   --train_fuser_only True \
   --pretrained_path output/sf2f_1st_stage_exp/best_with_model.pt \
   --learning_rate 1e-4
-pretrained_path는 1단계 결과 디렉토리의 pt 파일 경로로 교체하세요.
+```
 
-✅ 3단계: 테스트 및 성능 평가
-🔹 Fuser 없이 (1st-stage만 평가)
-bash
-복사
-편집
+> `pretrained_path`는 1단계 결과 디렉토리의 pt 파일 경로로 교체하세요.
+
+---
+
+## ✅ 3단계: 테스트 및 성능 평가
+
+### 🔹 Fuser 없이 (1st-stage만 평가)
+
+```bash
 python test.py \
   --path_opt options/vox/sf2f/sf2f_1st_stage.yaml \
   --batch_size 1 \
   --checkpoint_start_from output/sf2f_1st_stage_exp/best_with_model.pt \
   --recall_method cos_sim
-🔹 Fuser 포함 평가
-bash
-복사
-편집
+```
+
+### 🔹 Fuser 포함 평가
+
+```bash
 python test.py \
   --path_opt options/vox/sf2f/sf2f_fuser.yaml \
   --batch_size 1 \
@@ -170,3 +187,16 @@ python test.py \
   --face_gen_mode naive \
   --train_fuser_only True \
   --checkpoint epoch_10 epoch_20 epoch_30
+```
+
+---
+
+## ⏱️ 요약 정리
+
+| 단계  | 시간 (GPU 기준) | 설명                            |
+| --- | ----------- | ----------------------------- |
+| 1단계 | 약 3\~5시간    | 구조 점검과 임베딩 유사도 향상 확인          |
+| 2단계 | 약 30분\~1시간  | Fuser 구조 점검, coarse fusion 실험 |
+| 3단계 | 수 분 내 완료    | 결과 이미지 생성 및 recall 측정 가능      |
+
+필요 시 Colab이나 ngrok 기반 `TensorBoard` 시각화 설정도 도와드릴 수 있어요.
