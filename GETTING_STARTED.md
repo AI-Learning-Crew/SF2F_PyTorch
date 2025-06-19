@@ -118,3 +118,55 @@ python test.py \
   --train_fuser_only True \
   --checkpoint L1 cos R10 epoch_2 epoch_4 epoch_6 epoch_8 epoch_10 epoch_12
 ```
+
+
+1단계: 1st-stage (Encoder + Decoder 학습)
+bash
+복사
+편집
+python train.py \
+  --path_opt options/vox/sf2f/sf2f_1st_stage.yaml \
+  --batch_size 64 \                         # 빠른 실험을 위한 축소
+  --visualize_every 1 \                    # 매 epoch마다 시각화
+  --epochs 500 \                           # 12000 → 500으로 대폭 축소
+  --eval_epochs 10                         # 10 epoch마다 검증
+✅ 결과 확인 포인트: val_facenet_cos_sim, val_recall@k가 점진적으로 오르면 학습 성공
+
+✅ 2단계: 2nd-stage (Fuser만 학습)
+bash
+복사
+편집
+python train.py \
+  --path_opt options/vox/sf2f/sf2f_fuser.yaml \
+  --batch_size 64 \
+  --visualize_every 1 \
+  --epochs 30 \                            # 원래 50, 빠르게 30으로
+  --eval_epochs 5 \
+  --eval_mode_after 5 \                    # 초반부터 평가 진행
+  --train_fuser_only True \
+  --pretrained_path output/sf2f_1st_stage_exp/best_with_model.pt \
+  --learning_rate 1e-4
+pretrained_path는 1단계 결과 디렉토리의 pt 파일 경로로 교체하세요.
+
+✅ 3단계: 테스트 및 성능 평가
+🔹 Fuser 없이 (1st-stage만 평가)
+bash
+복사
+편집
+python test.py \
+  --path_opt options/vox/sf2f/sf2f_1st_stage.yaml \
+  --batch_size 1 \
+  --checkpoint_start_from output/sf2f_1st_stage_exp/best_with_model.pt \
+  --recall_method cos_sim
+🔹 Fuser 포함 평가
+bash
+복사
+편집
+python test.py \
+  --path_opt options/vox/sf2f/sf2f_fuser.yaml \
+  --batch_size 1 \
+  --checkpoint_start_from output/sf2f_fuser_exp \
+  --recall_method cos_sim \
+  --face_gen_mode naive \
+  --train_fuser_only True \
+  --checkpoint epoch_10 epoch_20 epoch_30
