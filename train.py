@@ -461,7 +461,7 @@ def main():
         os.path.isfile(args.pretrained_path):
         # 사전훈련된 모델 로드
         log.info('Loading Pretrained Model: {}'.format(args.pretrained_path))
-        pre_checkpoint = torch.load(args.pretrained_path)
+        pre_checkpoint = torch.load(args.pretrained_path, weights_only=False)
         # 커스텀 상태 딕셔너리 로딩 함수 사용
         load_my_state_dict(model, pre_checkpoint['model_state'])
 
